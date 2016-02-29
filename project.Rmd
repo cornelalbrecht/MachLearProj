@@ -1,0 +1,133 @@
+---
+title: "Machine Learning Course Project"
+author: "CA"
+date: "February 28, 2016"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+# Executive Summary
+
+In this report, a Random Forest model is utilized to classify the barbell-motion performed by test participants. The data contains various readings of sensors in addition to other information such as the participant or a time stamp as well as missing sensor readings. For that reason the data was cleaned before the analysis to avoid overfitting and/or fitting to wrong parameters (i.e. certain motion may have been performed at a certain time which could mis-lead the machine learner).
+
+The out-of-sample accuracy of the model found was greater than 99%, so that we are confident that we have found a very accurate model. Based on the model, the 20 sensor sets of the test-set were predicted.
+
+# Getting and Cleaning Data
+
+First let's load some packages:
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+# Loading Packages
+setwd("~/Google Drive/DataScienceClasses/Machine Learning")
+library(dplyr)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+
+# Setting seed for reproducibility
+set.seed(4711)
+```
+
+Downloading and loading the data the data:
+
+```{r, results='hide'}
+if(!file.exists("train.csv")){
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "train.csv", method = "curl")
+}
+
+if(!file.exists("test.csv")){
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "test.csv", method = "curl")
+}
+
+train <- read.csv("train.csv", na.strings = c("","NA","#DIV/0!"))
+test <- read.csv("test.csv", na.strings = c("","NA","#DIV/0!"))
+```
+
+Looking at the train data, there are several columns that are mostly or only NAs, so essentially we cannot use them for prediction, hence we can remove them in both, training and test data. A cutoff was chosen to remove
+
+Also the first couple of columns have data that might skew the prediction, like the timestamp or the username (i.e. certain excercises were only done at a certain time and/or by a certain user - while usually a valid classifier, the goal here is to identify the exercise purely based on the sensor readings rather than other patterns)
+
+```{r, results='hide'}
+# This takes care of the NA colums
+remove <- apply(train, 2, function(x){mean(is.na(x))}) 
+#levels(factor(removeNA))
+remove <- remove > 0.9
+# This takes care of the first 7 colums
+remove[1:7] = TRUE
+
+# Get rid of colums in test and training data
+train <- train[,!remove]
+test <- test[,!remove]
+```
+
+# Splitting the Data
+
+Since we want to make sure to have a good classifier before we predict the test-set, we will split the training set into an in-sample and out-sample set at a 65/35 ratio.
+
+```{r, results='hide'}
+insamp <- createDataPartition(train$classe, p = 0.65, list = FALSE)
+
+insTrain <- train[insamp, ]
+outTrain <- train[-insamp, ]
+```
+
+# Model Fitting and Testing
+
+## Classification and Regression Tree (CART)
+
+In order to find the best prediction model, we will try a CARTree fit first, as this is a rather simple and very intuitive classification method. I prefer to use the function from the packages directly, rather than the caret-wrapper.
+
+```{r}
+# CARTree
+CARTfit <- rpart(classe ~ ., data = insTrain)
+rpart.plot(CARTfit)
+
+# CARTree
+confusionMatrix(outTrain$classe, predict(CARTfit, outTrain, type = "class"))
+```
+
+A prediction accuracy of 75% is decent, but usually far better performance can be obtained by using Random Forests, which is an extension of CARTrees.
+
+## Random Forest
+
+Next let us examine the accuracy of fit of a Random Forest. The beauty of this approach is that it has a implicit boostrap (boostrap aggregation ["bagging"] as part of the methodology) and thus does not require any further cross-validation on the data. One can however perform cross-validation on the input parameters based on their importance. While a diagram of the input parameter importance is plotted below, further input parameter cross-validation was omitted here since it is beyond the scope of this project. In addition, the fitting of the additinal data when compiling the final model implies some cross-validation as well.
+
+```{r}
+# Random Forest
+RFfit <- randomForest(classe ~ ., data = insTrain, do.trace = F)
+varImpPlot(RFfit)
+
+# Random Forest
+confusionMatrix(outTrain$classe, predict(RFfit, outTrain))
+```
+
+An expected out-of-sample accuracy of 99.5% is a phenomenal result and requires no further tuning of the model.
+
+# Model re-training for greatest accuracy
+
+In order to optimize the model, the model will be re-fitted with the entirety of the training set so that the model has a maximum number of training sets. While not necessarily required at >99% accuracy, this may yield some additional performance.
+
+```{r}
+RFfit_fin <- randomForest(classe ~ ., data = train, do.trace = F)
+```
+
+# Predicting on the test set for submission
+
+With the final model fitted, we can now predict the test-set with the 20 observations we were given:
+
+```{r}
+prediction <- predict(RFfit_fin, test)
+print(data.frame(id = test$problem_id, prediction))
+```
+
+# Session Info for full Reproducibility
+
+```{r}
+sessionInfo()
+```
+
+
+
+
