@@ -92,12 +92,11 @@ A prediction accuracy of 75% is decent, but usually far better performance can b
 
 ## Random Forest
 
-Next let us examine the accuracy of fit of a Random Forest. The beauty of this approach is that it has a implicit boostrap (boostrap aggregation ["bagging"] as part of the methodology) and thus does not require any further cross-validation on the data. One can however perform cross-validation on the input parameters based on their importance. While a diagram of the input parameter importance is plotted below, further input parameter cross-validation was omitted here since it is beyond the scope of this project. In addition, the fitting of the additinal data when compiling the final model implies some cross-validation as well.
+Next let us examine the accuracy of fit of a Random Forest. The beauty of this approach is that it has a implicit boostrap (boostrap aggregation ["bagging"] as part of the methodology) and thus does not require any further cross-validation on the data. One can however perform cross-validation on the input parameters based on their importance (see below). 
 
 ```{r}
 # Random Forest
 RFfit <- randomForest(classe ~ ., data = insTrain, do.trace = F)
-varImpPlot(RFfit)
 
 # Random Forest
 confusionMatrix(outTrain$classe, predict(RFfit, outTrain))
@@ -105,11 +104,30 @@ confusionMatrix(outTrain$classe, predict(RFfit, outTrain))
 
 An expected out-of-sample accuracy of 99.5% is a phenomenal result and requires no further tuning of the model.
 
+### Cross-validation
+
+A diagram of the input parameter importance is plotted below.
+
+```{r}
+varImpPlot(RFfit)
+```
+
+One can see that only a limited number of the variables have a huge contribution to the model. In the following we will cross-validate the parameters used with the `rfcv()` function built into the randomForest package. We will use 3 folds of the data.
+
+```{r, cache=TRUE}
+cvres <- rfcv(trainx = insTrain[,1:52], trainy = insTrain$classe, cv.fold = 3)
+with(cvres, plot(n.var, error.cv, log="x", type="o", lwd=2))
+```
+
+The results show that further reduction of the number of parameters is possible. Using only the most important 26 instead of the 52 predictor variables would still yield a very accurate fit. Even at only 6 parameters, the model only produces an in-sample error of around 5%. This intuitively makes sense since some of the motions performed by the participants may have distint patterns in terms of basic acceleration, etc. Such acceleration would be recorded by various sensors used within and thus a high correlation will probably be found.
+
+Further analysis of parameter correlation and potential reduction is highly advised, but was omitted here for now for the sake of keeping the analysis simple given the deadline approaching. For a production, model, such modification should be made, however.
+
 # Model re-training for greatest accuracy
 
 In order to optimize the model, the model will be re-fitted with the entirety of the training set so that the model has a maximum number of training sets. While not necessarily required at >99% accuracy, this may yield some additional performance.
 
-```{r}
+```{r, cache=TRUE}
 RFfit_fin <- randomForest(classe ~ ., data = train, do.trace = F)
 ```
 
@@ -121,6 +139,8 @@ With the final model fitted, we can now predict the test-set with the 20 observa
 prediction <- predict(RFfit_fin, test)
 print(data.frame(id = test$problem_id, prediction))
 ```
+
+(All test-cases were correct according to the Coursera platform.)
 
 # Session Info for full Reproducibility
 

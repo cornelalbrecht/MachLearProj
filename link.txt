@@ -1,1 +1,5 @@
+Direct Link to WriteUp
 https://cdn.rawgit.com/cornelalbrecht/MachLearProj/master/project.html
+
+Link to Repo
+https://github.com/cornelalbrecht/MachLearProj
